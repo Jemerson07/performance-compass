@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Users, Brain, BarChart3, MessageSquare, ChevronLeft, ChevronRight, Zap, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, Brain, BarChart3, MessageSquare, ChevronLeft, ChevronRight, Zap, LogOut } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 import { useApp } from '@/contexts/AppContext';
 import { cn } from '@/lib/utils';
 
@@ -18,7 +19,8 @@ interface SidebarProps {
 
 export default function Sidebar({ activePage, onPageChange }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
-  const { role, setRole, setChatOpen } = useApp();
+  const { role, user, signOut } = useAuth();
+  const { setChatOpen } = useApp();
 
   return (
     <motion.aside
@@ -41,21 +43,20 @@ export default function Sidebar({ activePage, onPageChange }: SidebarProps) {
         </AnimatePresence>
       </div>
 
-      {/* Role Switch */}
-      <div className="px-3 py-3">
-        <div className="flex bg-muted rounded-lg p-0.5">
-          {(['manager', 'employee'] as const).map((r) => (
-            <button
-              key={r}
-              onClick={() => setRole(r)}
-              className={cn(
-                'flex-1 text-[11px] font-medium py-1.5 rounded-md transition-all',
-                role === r ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {collapsed ? (r === 'manager' ? '👔' : '👤') : (r === 'manager' ? 'Gestor' : 'Colaborador')}
-            </button>
-          ))}
+      {/* User info */}
+      <div className="px-3 py-3 border-b border-sidebar-border">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-xs flex-shrink-0">
+            {role === 'manager' ? '👔' : '👤'}
+          </div>
+          <AnimatePresence>
+            {!collapsed && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="overflow-hidden min-w-0">
+                <p className="text-xs font-medium text-foreground truncate">{user?.email}</p>
+                <p className="text-[10px] text-primary font-medium">{role === 'manager' ? 'Gestor' : 'Colaborador'}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
@@ -97,6 +98,23 @@ export default function Sidebar({ activePage, onPageChange }: SidebarProps) {
             {!collapsed && (
               <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="font-medium">
                 Assistente IA
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </button>
+      </div>
+
+      {/* Logout */}
+      <div className="px-3 pb-2">
+        <button
+          onClick={signOut}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-destructive hover:bg-destructive/10 transition-all"
+        >
+          <LogOut className="w-4 h-4 flex-shrink-0" />
+          <AnimatePresence>
+            {!collapsed && (
+              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                Sair
               </motion.span>
             )}
           </AnimatePresence>

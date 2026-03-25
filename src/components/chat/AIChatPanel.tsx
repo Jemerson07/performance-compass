@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, Bot, User, Sparkles } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
+import { useAuth } from '@/hooks/useAuth';
 import ReactMarkdown from 'react-markdown';
 
 interface Message {
@@ -24,7 +25,8 @@ const quickResponses: Record<string, string> = {
 };
 
 export default function AIChatPanel() {
-  const { isChatOpen, setChatOpen, role } = useApp();
+  const { isChatOpen, setChatOpen } = useApp();
+  const { role } = useAuth();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
