@@ -2,6 +2,14 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 import type { Database } from '@/integrations/supabase/types';
+import { mapAuthErrorMessage, normalizeEmail } from '@/lib/authErrors';
+import {
+  findOfflineUserByEmail,
+  getOfflineSessionUser,
+  hashPassword,
+  setOfflineSession,
+  upsertOfflineUser,
+} from '@/lib/offlineDatabase';
 
 type AppRole = Database['public']['Enums']['app_role'];
 
@@ -17,6 +25,11 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+async function resolveRole(userId: string): Promise<AppRole> {
+  const { data } = await supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle();
+  return data?.role ?? 'employee';
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -24,62 +37,114 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        setTimeout(async () => {
-          const { data } = await supabase
-            .from('user_roles')
-            .select('role')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
-          setRole(data?.role ?? 'employee');
-          setLoading(false);
-        }, 0);
-      } else {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
+
+      if (!currentSession?.user) {
         setRole(null);
         setLoading(false);
+        return;
       }
+
+      const resolvedRole = await resolveRole(currentSession.user.id);
+      setRole(resolvedRole);
+      setLoading(false);
+
+      upsertOfflineUser({
+        id: currentSession.user.id,
+        email: normalizeEmail(currentSession.user.email ?? ''),
+        name: (currentSession.user.user_metadata?.name as string) ?? 'Usuário',
+        role: resolvedRole,
+        passwordHash: findOfflineUserByEmail(normalizeEmail(currentSession.user.email ?? ''))?.passwordHash ?? null,
+        createdAt: new Date().toISOString(),
+      });
+      setOfflineSession(currentSession.user.id);
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', session.user.id)
-          .maybeSingle()
-          .then(({ data }) => {
-            setRole(data?.role ?? 'employee');
-            setLoading(false);
-          });
-      } else {
+    supabase.auth.getSession().then(async ({ data: { session: currentSession } }) => {
+      if (currentSession?.user) {
+        setSession(currentSession);
+        setUser(currentSession.user);
+        const resolvedRole = await resolveRole(currentSession.user.id);
+        setRole(resolvedRole);
+        setOfflineSession(currentSession.user.id);
         setLoading(false);
+        return;
       }
+
+      if (!navigator.onLine) {
+        const offlineSession = getOfflineSessionUser();
+        if (offlineSession) {
+          setUser({ id: offlineSession.id, email: offlineSession.email } as User);
+          setRole(offlineSession.role);
+        }
+      }
+
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, name: string, role: AppRole) => {
+  const signUp = async (email: string, password: string, name: string, roleValue: AppRole) => {
+    const normalizedEmail = normalizeEmail(email);
     const { error } = await supabase.auth.signUp({
-      email,
+      email: normalizedEmail,
       password,
-      options: { data: { name, role } },
+      options: { data: { name: name.trim(), role: roleValue } },
     });
-    return { error: error as Error | null };
+
+    if (!error) {
+      upsertOfflineUser({
+        id: crypto.randomUUID(),
+        email: normalizedEmail,
+        name: name.trim(),
+        role: roleValue,
+        passwordHash: await hashPassword(password),
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    return { error: error ? new Error(mapAuthErrorMessage(error.message)) : null };
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error as Error | null };
+    const normalizedEmail = normalizeEmail(email);
+    const inputPasswordHash = await hashPassword(password);
+
+    const { error, data } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+
+    if (!error) {
+      const userRole = data.user ? await resolveRole(data.user.id) : 'employee';
+      upsertOfflineUser({
+        id: data.user?.id ?? crypto.randomUUID(),
+        email: normalizedEmail,
+        name: (data.user?.user_metadata?.name as string) ?? 'Usuário',
+        role: userRole,
+        passwordHash: inputPasswordHash,
+        createdAt: new Date().toISOString(),
+      });
+      return { error: null };
+    }
+
+    const offlineUser = findOfflineUserByEmail(normalizedEmail);
+    if (!navigator.onLine && offlineUser?.passwordHash && offlineUser.passwordHash === inputPasswordHash) {
+      setUser({ id: offlineUser.id, email: offlineUser.email } as User);
+      setRole(offlineUser.role);
+      setOfflineSession(offlineUser.id);
+      return { error: null };
+    }
+
+    return { error: new Error(mapAuthErrorMessage(error.message)) };
   };
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    setSession(null);
+    setUser(null);
+    setRole(null);
+    setOfflineSession(null);
   };
 
   return (

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Zap, Mail, Lock, User, Briefcase } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { normalizeEmail } from '@/lib/authErrors';
 import { useToast } from '@/hooks/use-toast';
 
 export default function AuthPage() {
@@ -18,11 +19,14 @@ export default function AuthPage() {
     e.preventDefault();
     setLoading(true);
 
+    const cleanEmail = normalizeEmail(email);
+    const cleanName = name.trim();
+
     if (isLogin) {
-      const { error } = await signIn(email, password);
+      const { error } = await signIn(cleanEmail, password);
       if (error) toast({ title: 'Erro ao entrar', description: error.message, variant: 'destructive' });
     } else {
-      const { error } = await signUp(email, password, name, role);
+      const { error } = await signUp(cleanEmail, password, cleanName, role);
       if (error) {
         toast({ title: 'Erro ao cadastrar', description: error.message, variant: 'destructive' });
       } else {
@@ -143,6 +147,9 @@ export default function AuthPage() {
             >
               {loading ? 'Aguarde...' : isLogin ? 'Entrar' : 'Criar conta'}
             </button>
+            <p className="text-[11px] text-muted-foreground text-center">
+              Dica: no modo offline, use um login já autenticado anteriormente para acesso local.
+            </p>
           </form>
         </div>
       </motion.div>
