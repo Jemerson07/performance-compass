@@ -150,6 +150,7 @@ O sistema funciona completamente offline:
 - `GUIA_DE_TESTE.md` - Checklist de testes (35 casos)
 - `PRIMEIRO_USO.md` - Guia de início rápido
 - `RESUMO_COMPLETO.md` - Resumo técnico completo
+- `INSTALACAO_OFFLINE_APK.md` - Guia para servidor local offline e instalação APK
 
 ## Suporte
 
