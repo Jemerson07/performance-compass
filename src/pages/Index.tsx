@@ -3,12 +3,16 @@ import { AppProvider, useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/hooks/useAuth';
 import Sidebar from '@/components/layout/Sidebar';
 import AIChatPanel from '@/components/chat/AIChatPanel';
+import OfflineIndicator from '@/components/OfflineIndicator';
+import InstallPrompt from '@/components/InstallPrompt';
 import EmployeeDashboard from '@/pages/EmployeeDashboard';
 import ManagerDashboard from '@/pages/ManagerDashboard';
 import MindMapPage from '@/pages/MindMapPage';
 import AnalyticsPage from '@/pages/AnalyticsPage';
 import TeamPage from '@/pages/TeamPage';
 import AuthPage from '@/pages/AuthPage';
+import TaskAssignmentPage from '@/pages/TaskAssignmentPage';
+import EmployeeManagementPage from '@/pages/EmployeeManagementPage';
 
 function AppContent() {
   const [activePage, setActivePage] = useState('dashboard');
@@ -33,6 +37,10 @@ function AppContent() {
         return role === 'manager' ? <ManagerDashboard /> : <EmployeeDashboard />;
       case 'team':
         return <TeamPage />;
+      case 'tasks':
+        return <TaskAssignmentPage />;
+      case 'employees':
+        return <EmployeeManagementPage />;
       case 'mindmap':
         return <MindMapPage />;
       case 'analytics':
@@ -49,6 +57,8 @@ function AppContent() {
         {renderPage()}
       </main>
       <AIChatPanel />
+      <OfflineIndicator />
+      <InstallPrompt />
     </div>
   );
 }

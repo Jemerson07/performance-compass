@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Users, Brain, BarChart3, MessageSquare, ChevronLeft, ChevronRight, Zap, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, Brain, ChartBar as BarChart3, MessageSquare, ChevronLeft, ChevronRight, Zap, LogOut, ClipboardList, UserCog } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useApp } from '@/contexts/AppContext';
 import { cn } from '@/lib/utils';
@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils';
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'team', label: 'Equipe', icon: Users, managerOnly: true },
+  { id: 'tasks', label: 'Atribuições', icon: ClipboardList, managerOnly: true },
+  { id: 'employees', label: 'Colaboradores', icon: UserCog, managerOnly: true },
   { id: 'mindmap', label: 'Competências', icon: Brain },
   { id: 'analytics', label: 'Análises', icon: BarChart3, managerOnly: true },
 ];
