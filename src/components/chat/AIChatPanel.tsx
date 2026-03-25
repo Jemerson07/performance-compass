@@ -101,8 +101,8 @@ export default function AIChatPanel() {
                     <Bot className="w-3.5 h-3.5 text-accent" />
                   </div>
                 )}
-                <div className={`max-w-[85%] rounded-xl px-4 py-3 text-sm ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted/50'}`}>
-                  <ReactMarkdown className="prose prose-sm prose-invert max-w-none [&>p]:mb-2 [&>ul]:mb-2 [&>ol]:mb-2 [&_table]:text-xs [&_th]:px-2 [&_td]:px-2">
+                <div className={`max-w-[85%] rounded-xl px-4 py-3 text-sm ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted/50'} prose prose-sm prose-invert max-w-none [&>p]:mb-2 [&>ul]:mb-2 [&>ol]:mb-2 [&_table]:text-xs [&_th]:px-2 [&_td]:px-2`}>
+                  <ReactMarkdown>
                     {msg.content}
                   </ReactMarkdown>
                 </div>
