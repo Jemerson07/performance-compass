@@ -14,16 +14,233 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      daily_tips: {
+        Row: {
+          created_at: string | null
+          icon: string | null
+          id: string
+          message: string
+          target_user_id: string | null
+          type: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          message: string
+          target_user_id?: string | null
+          type?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          message?: string
+          target_user_id?: string | null
+          type?: string | null
+        }
+        Relationships: []
+      }
+      employees: {
+        Row: {
+          accuracy_rate: number | null
+          avg_response_time: number | null
+          badges: string[] | null
+          created_at: string | null
+          current_load: number | null
+          emails_received: number | null
+          emails_responded: number | null
+          id: string
+          level: number | null
+          tasks_completed: number | null
+          tasks_pending: number | null
+          updated_at: string | null
+          user_id: string
+          weekly_streak: number | null
+          xp: number | null
+          xp_to_next: number | null
+        }
+        Insert: {
+          accuracy_rate?: number | null
+          avg_response_time?: number | null
+          badges?: string[] | null
+          created_at?: string | null
+          current_load?: number | null
+          emails_received?: number | null
+          emails_responded?: number | null
+          id?: string
+          level?: number | null
+          tasks_completed?: number | null
+          tasks_pending?: number | null
+          updated_at?: string | null
+          user_id: string
+          weekly_streak?: number | null
+          xp?: number | null
+          xp_to_next?: number | null
+        }
+        Update: {
+          accuracy_rate?: number | null
+          avg_response_time?: number | null
+          badges?: string[] | null
+          created_at?: string | null
+          current_load?: number | null
+          emails_received?: number | null
+          emails_responded?: number | null
+          id?: string
+          level?: number | null
+          tasks_completed?: number | null
+          tasks_pending?: number | null
+          updated_at?: string | null
+          user_id?: string
+          weekly_streak?: number | null
+          xp?: number | null
+          xp_to_next?: number | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar: string | null
+          created_at: string | null
+          id: string
+          job_title: string | null
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          avatar?: string | null
+          created_at?: string | null
+          id?: string
+          job_title?: string | null
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          avatar?: string | null
+          created_at?: string | null
+          id?: string
+          job_title?: string | null
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      skills: {
+        Row: {
+          category: string
+          employee_id: string
+          id: string
+          level: number | null
+          name: string
+        }
+        Insert: {
+          category: string
+          employee_id: string
+          id?: string
+          level?: number | null
+          name: string
+        }
+        Update: {
+          category?: string
+          employee_id?: string
+          id?: string
+          level?: number | null
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "skills_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          actual_time: number | null
+          assigned_to: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          estimated_time: number | null
+          id: string
+          origin: string | null
+          priority: string
+          status: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          actual_time?: number | null
+          assigned_to?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          estimated_time?: number | null
+          id?: string
+          origin?: string | null
+          priority?: string
+          status?: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          actual_time?: number | null
+          assigned_to?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          estimated_time?: number | null
+          id?: string
+          origin?: string | null
+          priority?: string
+          status?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "manager" | "employee"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +367,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["manager", "employee"],
+    },
   },
 } as const
