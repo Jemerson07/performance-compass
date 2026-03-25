@@ -1,8 +1,9 @@
-import { Users, TrendingUp, Clock, Target, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Users, TrendingUp, Clock, Target, AlertTriangle } from 'lucide-react';
 import StatCard from '@/components/ui/StatCard';
 import TeamTable from '@/components/dashboard/TeamTable';
 import SkillsRadar from '@/components/charts/SkillsRadar';
 import TipsCarousel from '@/components/dashboard/TipsCarousel';
+import TaskReassignment from '@/components/dashboard/TaskReassignment';
 import { WeeklyChart } from '@/components/charts/WeeklyCharts';
 import { mockEmployees, mockTeamMetrics, mockTips } from '@/data/mockData';
 import { useApp } from '@/contexts/AppContext';
@@ -12,7 +13,6 @@ export default function ManagerDashboard() {
   const { selectedEmployeeId, setSelectedEmployeeId } = useApp();
   const selectedEmp = mockEmployees.find((e) => e.id === selectedEmployeeId);
   const overloaded = mockEmployees.filter((e) => e.currentLoad > 100);
-  const available = mockEmployees.filter((e) => e.currentLoad < 50);
 
   const recommendations = [
     { icon: '🔄', text: 'Redistribuir 3 tickets de Pedro Lima para Juliana Ferreira', priority: 'high' as const },
@@ -28,7 +28,6 @@ export default function ManagerDashboard() {
         <p className="text-sm text-muted-foreground">Visão geral da equipe e recomendações inteligentes</p>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total Equipe" value={mockEmployees.length} icon={Users} color="primary" />
         <StatCard label="Tarefas/Semana" value={mockTeamMetrics[0].value} change={mockTeamMetrics[0].change} icon={TrendingUp} color="accent" />
@@ -36,7 +35,6 @@ export default function ManagerDashboard() {
         <StatCard label="Precisão Média" value={`${mockTeamMetrics[2].value}%`} change={mockTeamMetrics[2].change} icon={Target} color="primary" />
       </div>
 
-      {/* Alerts */}
       {overloaded.length > 0 && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-card p-4 border-destructive/30">
           <div className="flex items-center gap-2 mb-2">
@@ -51,12 +49,12 @@ export default function ManagerDashboard() {
         </motion.div>
       )}
 
-      {/* Team Table */}
       <TeamTable employees={mockEmployees} onSelect={setSelectedEmployeeId} selectedId={selectedEmployeeId} />
 
-      {/* Bottom: Recommendations + Selected Employee + Chart */}
+      {/* Task Reassignment + Recommendations + Radar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recommendations */}
+        <TaskReassignment />
+
         <div className="glass-card p-5">
           <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
             <span className="pulse-dot" />
@@ -78,14 +76,13 @@ export default function ManagerDashboard() {
           </div>
         </div>
 
-        {/* Selected employee radar */}
         {selectedEmp && <SkillsRadar skills={selectedEmp.skills} />}
-
-        {/* Tips */}
-        <TipsCarousel tips={mockTips.slice(0, 3)} />
       </div>
 
-      <WeeklyChart />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <WeeklyChart />
+        <TipsCarousel tips={mockTips.slice(0, 3)} />
+      </div>
     </div>
   );
 }
