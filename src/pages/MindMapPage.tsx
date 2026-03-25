@@ -1,6 +1,7 @@
 import { mockEmployees } from '@/data/mockData';
 import SkillsRadar from '@/components/charts/SkillsRadar';
 import { useApp } from '@/contexts/AppContext';
+import { useAuth } from '@/hooks/useAuth';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -14,7 +15,8 @@ const categoryLabels: Record<string, string> = {
 };
 
 export default function MindMapPage() {
-  const { selectedEmployeeId, setSelectedEmployeeId, role } = useApp();
+  const { selectedEmployeeId, setSelectedEmployeeId } = useApp();
+  const { role } = useAuth();
   const employees = role === 'manager' ? mockEmployees : mockEmployees.filter((e) => e.id === selectedEmployeeId);
   const selected = mockEmployees.find((e) => e.id === selectedEmployeeId) || mockEmployees[0];
 
