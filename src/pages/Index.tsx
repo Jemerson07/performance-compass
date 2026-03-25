@@ -1,16 +1,47 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState } from 'react';
+import { AppProvider, useApp } from '@/contexts/AppContext';
+import Sidebar from '@/components/layout/Sidebar';
+import AIChatPanel from '@/components/chat/AIChatPanel';
+import EmployeeDashboard from '@/pages/EmployeeDashboard';
+import ManagerDashboard from '@/pages/ManagerDashboard';
+import MindMapPage from '@/pages/MindMapPage';
+import AnalyticsPage from '@/pages/AnalyticsPage';
+import TeamPage from '@/pages/TeamPage';
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+function AppContent() {
+  const [activePage, setActivePage] = useState('dashboard');
+  const { role } = useApp();
+
+  const renderPage = () => {
+    switch (activePage) {
+      case 'dashboard':
+        return role === 'manager' ? <ManagerDashboard /> : <EmployeeDashboard />;
+      case 'team':
+        return <TeamPage />;
+      case 'mindmap':
+        return <MindMapPage />;
+      case 'analytics':
+        return <AnalyticsPage />;
+      default:
+        return role === 'manager' ? <ManagerDashboard /> : <EmployeeDashboard />;
+    }
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
+    <div className="min-h-screen bg-background">
+      <Sidebar activePage={activePage} onPageChange={setActivePage} />
+      <main className="ml-[260px] p-8 max-w-[1400px]">
+        {renderPage()}
+      </main>
+      <AIChatPanel />
     </div>
   );
-};
+}
 
-const Index = PlaceholderIndex;
-
-export default Index;
+export default function Index() {
+  return (
+    <AppProvider>
+      <AppContent />
+    </AppProvider>
+  );
+}
