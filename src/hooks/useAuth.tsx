@@ -41,32 +41,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Primeiro, inicializa a sessão atual
-    supabase.auth.getSession().then(async ({ data: { session: currentSession } }) => {
-      if (currentSession?.user) {
-        setSession(currentSession);
-        setUser(currentSession.user);
-        const resolvedRole = await resolveRole(currentSession.user.id);
-        setRole(resolvedRole);
-        setOfflineSession(currentSession.user.id);
-        setLoading(false);
-        return;
-      }
+    let mounted = true;
 
-      // Modo offline: tenta recuperar sessão local
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        const offlineSession = getOfflineSessionUser();
-        if (offlineSession) {
-          setUser({ id: offlineSession.id, email: offlineSession.email } as User);
-          setRole(offlineSession.role);
-        }
-      }
-
-      setLoading(false);
-    });
-
-    // Escuta mudanças de estado de autenticação
+    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
+      if (!mounted) return;
+
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
 
@@ -76,23 +56,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const resolvedRole = await resolveRole(currentSession.user.id);
-      setRole(resolvedRole);
-      setLoading(false);
+      // Use setTimeout to avoid Supabase deadlock on role fetch during auth state change
+      setTimeout(async () => {
+        if (!mounted) return;
+        const resolvedRole = await resolveRole(currentSession.user.id);
+        if (!mounted) return;
+        setRole(resolvedRole);
+        setLoading(false);
 
-      // Persiste dados para uso offline
-      upsertOfflineUser({
-        id: currentSession.user.id,
-        email: normalizeEmail(currentSession.user.email ?? ''),
-        name: (currentSession.user.user_metadata?.name as string) ?? 'Usuário',
-        role: resolvedRole,
-        passwordHash: findOfflineUserByEmail(normalizeEmail(currentSession.user.email ?? ''))?.passwordHash ?? null,
-        createdAt: new Date().toISOString(),
-      });
-      setOfflineSession(currentSession.user.id);
+        // Persist for offline use
+        upsertOfflineUser({
+          id: currentSession.user.id,
+          email: normalizeEmail(currentSession.user.email ?? ''),
+          name: (currentSession.user.user_metadata?.name as string) ?? 'Usuário',
+          role: resolvedRole,
+          passwordHash: findOfflineUserByEmail(normalizeEmail(currentSession.user.email ?? ''))?.passwordHash ?? null,
+          createdAt: new Date().toISOString(),
+        });
+        setOfflineSession(currentSession.user.id);
+      }, 0);
     });
 
-    return () => subscription.unsubscribe();
+    // Then check for existing session
+    supabase.auth.getSession().then(async ({ data: { session: currentSession } }) => {
+      if (!mounted) return;
+
+      if (!currentSession?.user) {
+        // No session — check offline fallback
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          const offlineSession = getOfflineSessionUser();
+          if (offlineSession) {
+            setUser({ id: offlineSession.id, email: offlineSession.email } as User);
+            setRole(offlineSession.role);
+          }
+        }
+        setLoading(false);
+      }
+      // If session exists, onAuthStateChange will handle it
+    });
+
+    // Safety timeout — never stay loading forever
+    const timeout = setTimeout(() => {
+      if (mounted && loading) {
+        setLoading(false);
+      }
+    }, 5000);
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   const signUp = async (
@@ -105,8 +119,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   ) => {
     const normalizedEmail = normalizeEmail(email);
 
-    // O Supabase trigger `handle_new_user` cria automaticamente os registros
-    // em profiles, employees e user_roles usando os metadados abaixo.
     const { error, data } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
@@ -121,7 +133,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (!error) {
-      // Persiste localmente para suporte offline
       upsertOfflineUser({
         id: data.user?.id ?? crypto.randomUUID(),
         email: normalizedEmail,
@@ -154,7 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: null };
     }
 
-    // Fallback offline: verifica credenciais locais
+    // Fallback offline
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       const offlineUser = findOfflineUserByEmail(normalizedEmail);
       if (offlineUser?.passwordHash && offlineUser.passwordHash === inputPasswordHash) {
