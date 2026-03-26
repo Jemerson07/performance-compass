@@ -16,10 +16,6 @@ class OfflineQueue {
   private isOnline: boolean = true;
   private initialized: boolean = false;
 
-  /**
-   * Inicializa o módulo de fila offline.
-   * Deve ser chamado apenas no contexto do browser (ex: dentro de useEffect).
-   */
   initialize() {
     if (this.initialized || typeof window === 'undefined') return;
     this.initialized = true;
@@ -43,7 +39,6 @@ class OfflineQueue {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        // Garante que operações antigas sem `id` ou `retries` sejam normalizadas
         this.queue = (Array.isArray(parsed) ? parsed : []).map((op: any) => ({
           id: op.id ?? crypto.randomUUID(),
           operation_type: op.operation_type,
@@ -88,7 +83,6 @@ class OfflineQueue {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Copia a fila atual e limpa para evitar processamento duplo
     const operations = [...this.queue];
     this.queue = [];
     this.saveQueueToLocalStorage();
@@ -97,15 +91,6 @@ class OfflineQueue {
 
     for (const operation of operations) {
       try {
-        // Registra a operação na tabela de fila do banco
-        await supabase.from('offline_queue').insert({
-          user_id: user.id,
-          operation_type: operation.operation_type,
-          table_name: operation.table_name,
-          operation_data: operation.operation_data,
-        });
-
-        // Executa a operação real na tabela alvo
         let operationError: any = null;
 
         if (operation.operation_type === 'insert') {
@@ -122,36 +107,18 @@ class OfflineQueue {
 
         if (operationError) throw operationError;
 
-        // Marca a operação específica como sincronizada
-        await supabase
-          .from('offline_queue')
-          .update({ status: 'synced', synced_at: new Date().toISOString() })
-          .eq('user_id', user.id)
-          .eq('status', 'pending')
-          .eq('operation_type', operation.operation_type)
-          .eq('table_name', operation.table_name);
-
       } catch (error) {
         console.error(`[OfflineQueue] Erro ao sincronizar operação ${operation.id}:`, error);
 
-        // Incrementa tentativas e recoloca na fila se não excedeu o limite
         const updatedOp = { ...operation, retries: (operation.retries ?? 0) + 1 };
         if (updatedOp.retries < MAX_RETRIES) {
           failedOperations.push(updatedOp);
         } else {
           console.warn(`[OfflineQueue] Operação ${operation.id} descartada após ${MAX_RETRIES} tentativas.`);
-          // Marca como falha no banco
-          await supabase
-            .from('offline_queue')
-            .update({ status: 'failed', error_message: String(error) })
-            .eq('user_id', user.id)
-            .eq('status', 'pending')
-            .eq('table_name', operation.table_name);
         }
       }
     }
 
-    // Recoloca operações que falharam
     if (failedOperations.length > 0) {
       this.queue = [...this.queue, ...failedOperations];
       this.saveQueueToLocalStorage();
