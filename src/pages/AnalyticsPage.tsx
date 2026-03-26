@@ -30,7 +30,7 @@ export default function AnalyticsPage() {
   const checks = useMemo(() => buildBiChecks(), []);
 
   const downloadCsv = () => {
-    const csv = toCsv([...buildAnalyticsRows(), ...buildWeeklyRows()]);
+    const csv = toCsv([...buildAnalyticsRows(), ...buildWeeklyRows()] as any);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -45,7 +45,7 @@ export default function AnalyticsPage() {
   };
 
   const saveSnapshot = () => {
-    storeAnalyticsSnapshot(buildAnalyticsRows());
+    storeAnalyticsSnapshot(buildAnalyticsRows() as any);
     const count = readAnalyticsSnapshots().length;
     setSnapshotCount(count);
     toast({ title: 'Snapshot salvo offline', description: `Total de snapshots locais: ${count}.` });
