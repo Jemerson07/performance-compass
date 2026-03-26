@@ -1,24 +1,35 @@
 import { supabase } from '@/integrations/supabase/client';
 
 interface QueuedOperation {
+  id: string;
   operation_type: 'insert' | 'update' | 'delete';
   table_name: string;
   operation_data: any;
+  retries: number;
 }
+
+const MAX_RETRIES = 3;
+const STORAGE_KEY = 'performance-ai-offline-queue';
 
 class OfflineQueue {
   private queue: QueuedOperation[] = [];
-  private isOnline: boolean = navigator.onLine;
+  private isOnline: boolean = true;
+  private initialized: boolean = false;
 
-  constructor() {
-    this.initializeOnlineDetection();
+  /**
+   * Inicializa o módulo de fila offline.
+   * Deve ser chamado apenas no contexto do browser (ex: dentro de useEffect).
+   */
+  initialize() {
+    if (this.initialized || typeof window === 'undefined') return;
+    this.initialized = true;
+
+    this.isOnline = navigator.onLine;
     this.loadQueueFromLocalStorage();
-  }
 
-  private initializeOnlineDetection() {
     window.addEventListener('online', () => {
       this.isOnline = true;
-      this.syncQueue();
+      this.syncQueue().catch(console.error);
     });
 
     window.addEventListener('offline', () => {
@@ -27,22 +38,43 @@ class OfflineQueue {
   }
 
   private loadQueueFromLocalStorage() {
-    const stored = localStorage.getItem('offlineQueue');
-    if (stored) {
-      try {
-        this.queue = JSON.parse(stored);
-      } catch (error) {
-        console.error('Error loading offline queue:', error);
+    if (typeof localStorage === 'undefined') return;
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Garante que operações antigas sem `id` ou `retries` sejam normalizadas
+        this.queue = (Array.isArray(parsed) ? parsed : []).map((op: any) => ({
+          id: op.id ?? crypto.randomUUID(),
+          operation_type: op.operation_type,
+          table_name: op.table_name,
+          operation_data: op.operation_data,
+          retries: op.retries ?? 0,
+        }));
       }
+    } catch (error) {
+      console.error('[OfflineQueue] Erro ao carregar fila do localStorage:', error);
+      this.queue = [];
     }
   }
 
   private saveQueueToLocalStorage() {
-    localStorage.setItem('offlineQueue', JSON.stringify(this.queue));
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.queue));
+    } catch (error) {
+      console.error('[OfflineQueue] Erro ao salvar fila no localStorage:', error);
+    }
   }
 
-  async addOperation(operation: QueuedOperation) {
-    this.queue.push(operation);
+  async addOperation(operation: Omit<QueuedOperation, 'id' | 'retries'>) {
+    const op: QueuedOperation = {
+      ...operation,
+      id: crypto.randomUUID(),
+      retries: 0,
+    };
+
+    this.queue.push(op);
     this.saveQueueToLocalStorage();
 
     if (this.isOnline) {
@@ -53,39 +85,76 @@ class OfflineQueue {
   async syncQueue() {
     if (!this.isOnline || this.queue.length === 0) return;
 
-    const user = (await supabase.auth.getUser()).data.user;
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    // Copia a fila atual e limpa para evitar processamento duplo
     const operations = [...this.queue];
     this.queue = [];
     this.saveQueueToLocalStorage();
 
+    const failedOperations: QueuedOperation[] = [];
+
     for (const operation of operations) {
       try {
-        const { error } = await supabase.from('offline_queue').insert({
+        // Registra a operação na tabela de fila do banco
+        await supabase.from('offline_queue').insert({
           user_id: user.id,
           operation_type: operation.operation_type,
           table_name: operation.table_name,
           operation_data: operation.operation_data,
         });
 
-        if (error) throw error;
+        // Executa a operação real na tabela alvo
+        let operationError: any = null;
 
         if (operation.operation_type === 'insert') {
-          await supabase.from(operation.table_name).insert(operation.operation_data);
+          const { error } = await supabase.from(operation.table_name as any).insert(operation.operation_data);
+          operationError = error;
         } else if (operation.operation_type === 'update') {
           const { id, ...data } = operation.operation_data;
-          await supabase.from(operation.table_name).update(data).eq('id', id);
+          const { error } = await supabase.from(operation.table_name as any).update(data).eq('id', id);
+          operationError = error;
         } else if (operation.operation_type === 'delete') {
-          await supabase.from(operation.table_name).delete().eq('id', operation.operation_data.id);
+          const { error } = await supabase.from(operation.table_name as any).delete().eq('id', operation.operation_data.id);
+          operationError = error;
         }
 
-        await supabase.from('offline_queue').update({ status: 'synced', synced_at: new Date().toISOString() }).eq('user_id', user.id).eq('status', 'pending');
+        if (operationError) throw operationError;
+
+        // Marca a operação específica como sincronizada
+        await supabase
+          .from('offline_queue')
+          .update({ status: 'synced', synced_at: new Date().toISOString() })
+          .eq('user_id', user.id)
+          .eq('status', 'pending')
+          .eq('operation_type', operation.operation_type)
+          .eq('table_name', operation.table_name);
+
       } catch (error) {
-        this.queue.push(operation);
-        this.saveQueueToLocalStorage();
-        console.error('Error syncing operation:', error);
+        console.error(`[OfflineQueue] Erro ao sincronizar operação ${operation.id}:`, error);
+
+        // Incrementa tentativas e recoloca na fila se não excedeu o limite
+        const updatedOp = { ...operation, retries: (operation.retries ?? 0) + 1 };
+        if (updatedOp.retries < MAX_RETRIES) {
+          failedOperations.push(updatedOp);
+        } else {
+          console.warn(`[OfflineQueue] Operação ${operation.id} descartada após ${MAX_RETRIES} tentativas.`);
+          // Marca como falha no banco
+          await supabase
+            .from('offline_queue')
+            .update({ status: 'failed', error_message: String(error) })
+            .eq('user_id', user.id)
+            .eq('status', 'pending')
+            .eq('table_name', operation.table_name);
+        }
       }
+    }
+
+    // Recoloca operações que falharam
+    if (failedOperations.length > 0) {
+      this.queue = [...this.queue, ...failedOperations];
+      this.saveQueueToLocalStorage();
     }
   }
 

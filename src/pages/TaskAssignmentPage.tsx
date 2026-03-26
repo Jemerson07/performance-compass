@@ -68,8 +68,10 @@ export default function TaskAssignmentPage() {
   });
 
   useEffect(() => {
-    loadEmployees();
-  }, []);
+    if (role === 'manager') {
+      loadEmployees();
+    }
+  }, [role]);
 
   useEffect(() => {
     if (selectedEmployee) {
@@ -85,7 +87,7 @@ export default function TaskAssignmentPage() {
 
       if (empError) throw empError;
 
-      setEmployees(employeesData.map((emp: any) => ({
+      setEmployees((employeesData ?? []).map((emp: any) => ({
         ...emp,
         profile: emp.profiles
       })));

@@ -4,11 +4,15 @@ import { WifiOff, Wifi, Cloud, CloudOff } from 'lucide-react';
 import { offlineQueue } from '@/lib/offlineQueue';
 
 export default function OfflineIndicator() {
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isOnline, setIsOnline] = useState(true);
   const [queueSize, setQueueSize] = useState(0);
   const [showNotification, setShowNotification] = useState(false);
 
   useEffect(() => {
+    // Inicializa o módulo de fila offline no contexto do browser
+    offlineQueue.initialize();
+    setIsOnline(navigator.onLine);
+
     const handleOnline = () => {
       setIsOnline(true);
       setShowNotification(true);

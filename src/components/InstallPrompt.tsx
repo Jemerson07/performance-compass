@@ -7,48 +7,38 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-const apkCommand = 'adb install performance-ai.apk';
+const DISMISS_KEY = 'performance-ai-install-dismissed';
 
 export default function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
 
   useEffect(() => {
+    if (localStorage.getItem(DISMISS_KEY)) return;
+
     const handler = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-
-      const dismissed = localStorage.getItem('installPromptDismissed');
-      if (!dismissed) {
-        setShowPrompt(true);
-      }
+      setTimeout(() => setShowPrompt(true), 3000);
     };
 
     window.addEventListener('beforeinstallprompt', handler);
-
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
   const handleInstall = async () => {
     if (!deferredPrompt) return;
-
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-
     if (outcome === 'accepted') {
       setShowPrompt(false);
     }
-
     setDeferredPrompt(null);
   };
 
   const handleDismiss = () => {
     setShowPrompt(false);
-    localStorage.setItem('installPromptDismissed', 'true');
-  };
-
-  const copyApkCommand = async () => {
-    await navigator.clipboard.writeText(apkCommand);
+    localStorage.setItem(DISMISS_KEY, 'true');
   };
 
   return (
@@ -58,37 +48,42 @@ export default function InstallPrompt() {
           initial={{ opacity: 0, y: 100 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 100 }}
-          className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-[420px] z-50"
+          transition={{ type: 'spring', damping: 20 }}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm px-4"
         >
-          <div className="glass-card p-4 border-primary/30 space-y-3">
-            <div className="flex items-start justify-between mb-1">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
-                  <Download className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-semibold text-foreground">Instalar PerformanceAI</h4>
-                  <p className="text-xs text-muted-foreground">Use offline em desktop e mobile</p>
-                </div>
+          <div className="glass-card p-4 glow-border">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
+                <Smartphone className="w-5 h-5 text-primary" />
               </div>
-              <button onClick={handleDismiss} className="p-1 rounded hover:bg-muted text-muted-foreground">
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-semibold text-foreground">Instalar PerformanceAI</h4>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Adicione à tela inicial para acesso rápido e suporte offline.
+                </p>
+              </div>
+              <button
+                onClick={handleDismiss}
+                className="p-1 rounded hover:bg-muted text-muted-foreground flex-shrink-0"
+                aria-label="Fechar"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
-
-            <button
-              onClick={handleInstall}
-              className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
-            >
-              <Download className="w-4 h-4" />
-              Instalar Aplicativo (PWA)
-            </button>
-
-            <div className="rounded-lg border border-border p-3 bg-muted/30">
-              <p className="text-xs font-medium flex items-center gap-1 mb-2"><Smartphone className="w-3.5 h-3.5" /> Instalação APK rápida (Android)</p>
-              <p className="text-[11px] text-muted-foreground mb-2">Gere seu APK da versão web e instale via ADB no dispositivo:</p>
-              <code className="text-[11px] block bg-background rounded px-2 py-1 mb-2">{apkCommand}</code>
-              <button onClick={copyApkCommand} className="text-[11px] px-2 py-1 rounded bg-background border border-border hover:bg-muted">Copiar comando</button>
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={handleInstall}
+                className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Instalar
+              </button>
+              <button
+                onClick={handleDismiss}
+                className="px-4 py-2 rounded-lg bg-muted text-foreground text-xs hover:bg-muted/80 transition-colors"
+              >
+                Agora não
+              </button>
             </div>
           </div>
         </motion.div>

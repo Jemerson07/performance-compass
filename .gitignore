@@ -23,3 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 .env
+.env.local
+.env.production
+.env.development
+
+# Supabase local
+supabase/.temp
+supabase/.branches

@@ -18,7 +18,7 @@ interface AuthContextType {
   session: Session | null;
   role: AppRole | null;
   loading: boolean;
-  signUp: (email: string, password: string, name: string, role: AppRole) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, name: string, role: AppRole, jobTitle?: string, avatar?: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
@@ -26,8 +26,12 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 async function resolveRole(userId: string): Promise<AppRole> {
-  const { data } = await supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle();
-  return data?.role ?? 'employee';
+  try {
+    const { data } = await supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle();
+    return data?.role ?? 'employee';
+  } catch {
+    return 'employee';
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -37,6 +41,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Primeiro, inicializa a sessão atual
+    supabase.auth.getSession().then(async ({ data: { session: currentSession } }) => {
+      if (currentSession?.user) {
+        setSession(currentSession);
+        setUser(currentSession.user);
+        const resolvedRole = await resolveRole(currentSession.user.id);
+        setRole(resolvedRole);
+        setOfflineSession(currentSession.user.id);
+        setLoading(false);
+        return;
+      }
+
+      // Modo offline: tenta recuperar sessão local
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        const offlineSession = getOfflineSessionUser();
+        if (offlineSession) {
+          setUser({ id: offlineSession.id, email: offlineSession.email } as User);
+          setRole(offlineSession.role);
+        }
+      }
+
+      setLoading(false);
+    });
+
+    // Escuta mudanças de estado de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
@@ -51,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRole(resolvedRole);
       setLoading(false);
 
+      // Persiste dados para uso offline
       upsertOfflineUser({
         id: currentSession.user.id,
         email: normalizeEmail(currentSession.user.email ?? ''),
@@ -62,42 +92,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setOfflineSession(currentSession.user.id);
     });
 
-    supabase.auth.getSession().then(async ({ data: { session: currentSession } }) => {
-      if (currentSession?.user) {
-        setSession(currentSession);
-        setUser(currentSession.user);
-        const resolvedRole = await resolveRole(currentSession.user.id);
-        setRole(resolvedRole);
-        setOfflineSession(currentSession.user.id);
-        setLoading(false);
-        return;
-      }
-
-      if (!navigator.onLine) {
-        const offlineSession = getOfflineSessionUser();
-        if (offlineSession) {
-          setUser({ id: offlineSession.id, email: offlineSession.email } as User);
-          setRole(offlineSession.role);
-        }
-      }
-
-      setLoading(false);
-    });
-
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, name: string, roleValue: AppRole) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    name: string,
+    roleValue: AppRole,
+    jobTitle?: string,
+    avatar?: string,
+  ) => {
     const normalizedEmail = normalizeEmail(email);
-    const { error } = await supabase.auth.signUp({
+
+    // O Supabase trigger `handle_new_user` cria automaticamente os registros
+    // em profiles, employees e user_roles usando os metadados abaixo.
+    const { error, data } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
-      options: { data: { name: name.trim(), role: roleValue } },
+      options: {
+        data: {
+          name: name.trim(),
+          role: roleValue,
+          job_title: jobTitle?.trim() ?? null,
+          avatar: avatar ?? '👤',
+        },
+      },
     });
 
     if (!error) {
+      // Persiste localmente para suporte offline
       upsertOfflineUser({
-        id: crypto.randomUUID(),
+        id: data.user?.id ?? crypto.randomUUID(),
         email: normalizedEmail,
         name: name.trim(),
         role: roleValue,
@@ -128,12 +154,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: null };
     }
 
-    const offlineUser = findOfflineUserByEmail(normalizedEmail);
-    if (!navigator.onLine && offlineUser?.passwordHash && offlineUser.passwordHash === inputPasswordHash) {
-      setUser({ id: offlineUser.id, email: offlineUser.email } as User);
-      setRole(offlineUser.role);
-      setOfflineSession(offlineUser.id);
-      return { error: null };
+    // Fallback offline: verifica credenciais locais
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      const offlineUser = findOfflineUserByEmail(normalizedEmail);
+      if (offlineUser?.passwordHash && offlineUser.passwordHash === inputPasswordHash) {
+        setUser({ id: offlineUser.id, email: offlineUser.email } as User);
+        setRole(offlineUser.role);
+        setOfflineSession(offlineUser.id);
+        return { error: null };
+      }
     }
 
     return { error: new Error(mapAuthErrorMessage(error.message)) };

@@ -7,6 +7,13 @@ export interface AnalyticsRow {
   tarefasConcluidas: number;
 }
 
+export interface WeeklyRow {
+  dia: string;
+  tarefas: number;
+  emails: number;
+  concluidas: number;
+}
+
 export function buildAnalyticsRows(): AnalyticsRow[] {
   return mockEmployees.map((employee) => ({
     colaborador: employee.name,
@@ -16,12 +23,16 @@ export function buildAnalyticsRows(): AnalyticsRow[] {
   }));
 }
 
-export function buildWeeklyRows() {
+/**
+ * Constrói linhas semanais usando o shape correto de `weeklyData`
+ * (que possui `day`, `tarefas`, `emails`, `concluidas`).
+ */
+export function buildWeeklyRows(): WeeklyRow[] {
   return weeklyData.map((week) => ({
-    semana: week.week,
-    tarefas: week.tasks,
-    precisao: week.accuracy,
-    tempoMedioResposta: week.responseTime,
+    dia: week.day,
+    tarefas: week.tarefas,
+    emails: week.emails,
+    concluidas: week.concluidas,
   }));
 }
 
