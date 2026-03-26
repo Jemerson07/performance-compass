@@ -94,6 +94,9 @@ export default function EmployeeManagementPage() {
     setLoading(true);
 
     try {
+      // Save current manager session before creating new user
+      const { data: { session: managerSession } } = await supabase.auth.getSession();
+
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: newEmployee.email.trim().toLowerCase(),
         password: newEmployee.password,
@@ -113,17 +116,15 @@ export default function EmployeeManagementPage() {
         throw new Error('Usuário não foi criado. Verifique se o e-mail já está em uso.');
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      if (newEmployee.job_title || newEmployee.avatar !== '👤') {
-        await supabase
-          .from('profiles')
-          .update({
-            job_title: newEmployee.job_title.trim() || null,
-            avatar: newEmployee.avatar,
-          })
-          .eq('user_id', signUpData.user.id);
+      // Restore manager session immediately to prevent auto-login as new user
+      if (managerSession) {
+        await supabase.auth.setSession({
+          access_token: managerSession.access_token,
+          refresh_token: managerSession.refresh_token,
+        });
       }
+
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       toast({
         title: 'Colaborador criado com sucesso!',
