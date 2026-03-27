@@ -3,7 +3,8 @@ import StatCard from '@/components/ui/StatCard';
 import TeamTable from '@/components/dashboard/TeamTable';
 import SkillsRadar from '@/components/charts/SkillsRadar';
 import TipsCarousel from '@/components/dashboard/TipsCarousel';
-import TaskReassignment from '@/components/dashboard/TaskReassignment';
+import TaskReassignmentLive from '@/components/dashboard/TaskReassignmentLive';
+import NewActivityForm from '@/components/dashboard/NewActivityForm';
 import { WeeklyChart } from '@/components/charts/WeeklyCharts';
 import { mockEmployees, mockTeamMetrics, mockTips } from '@/data/mockData';
 import { useApp } from '@/contexts/AppContext';
@@ -49,12 +50,15 @@ export default function ManagerDashboard() {
         </motion.div>
       )}
 
+      {/* New Activity + Reassignment */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <NewActivityForm />
+        <TaskReassignmentLive />
+      </div>
+
       <TeamTable employees={mockEmployees} onSelect={setSelectedEmployeeId} selectedId={selectedEmployeeId} />
 
-      {/* Task Reassignment + Recommendations + Radar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <TaskReassignment />
-
         <div className="glass-card p-5">
           <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
             <span className="pulse-dot" />
